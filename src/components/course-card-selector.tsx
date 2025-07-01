@@ -91,70 +91,120 @@ const CourseCard = ({
 
   // Filter courses by search term with enhanced matching
   const filteredCourses = uniqueCourses.filter(course => {
-    const searchLower = searchTerm.toLowerCase();
+    const searchLower = searchTerm.toLowerCase().trim();
     const titleLower = course.title.toLowerCase();
     const codeLower = course.courseCode.toLowerCase();
     
-    // Basic matching
+    // Basic matching - most important, check first
     if (titleLower.includes(searchLower) || codeLower.includes(searchLower)) {
       return true;
     }
     
-    // Extract uppercase letters from course title to create acronyms
+    // Dynamic uppercase letter extraction - extract all capital letters from title
     const upperCaseLetters = course.title.match(/[A-Z]/g);
-    if (upperCaseLetters) {
+    if (upperCaseLetters && upperCaseLetters.length >= 2) {
       const acronymFromUppercase = upperCaseLetters.join('').toLowerCase();
-      if (acronymFromUppercase.includes(searchLower)) {
-        return true;
-      }
-    }
-    
-    // Create acronym from first letters of words (excluding common stop words)
-    const stopWords = ['and', 'of', 'the', 'for', 'in', 'on', 'to', 'a', 'an', 'with', 'by', 'from', 'at', 'as', 'is', 'are', 'was', 'were', 'i', 'ii', 'iii', 'iv', 'v'];
-    const titleWords = course.title.split(/\s+/).filter(word => 
-      word.length > 0 && !stopWords.includes(word.toLowerCase())
-    );
-    
-    if (titleWords.length > 0) {
-      // Full acronym from first letters
-      const firstLetterAcronym = titleWords.map(word => word[0]).join('').toLowerCase();
-      if (firstLetterAcronym.includes(searchLower)) {
+      
+      // Exact match with full uppercase acronym
+      if (acronymFromUppercase === searchLower) {
         return true;
       }
       
-      // Partial acronyms (first 2, 3, etc. words)
-      for (let i = 2; i <= Math.min(titleWords.length, 4); i++) {
-        const partialAcronym = titleWords.slice(0, i).map(word => word[0]).join('').toLowerCase();
-        if (partialAcronym.includes(searchLower)) {
+      // Check if search term matches start of uppercase acronym
+      if (searchLower.length >= 2 && acronymFromUppercase.startsWith(searchLower)) {
+        return true;
+      }
+      
+      // Check if search term is contained within uppercase acronym
+      if (searchLower.length >= 2 && acronymFromUppercase.includes(searchLower)) {
+        return true;
+      }
+      
+      // Check partial uppercase acronyms (first N letters)
+      for (let i = 2; i <= Math.min(upperCaseLetters.length, searchLower.length + 1); i++) {
+        const partialUppercaseAcronym = upperCaseLetters.slice(0, i).join('').toLowerCase();
+        if (partialUppercaseAcronym === searchLower) {
           return true;
         }
       }
     }
     
-    // Check common course number patterns (e.g., searching "1" for "I", "2" for "II")
-    const romanToNumber: { [key: string]: string } = {
-      'i': '1',
-      'ii': '2', 
-      'iii': '3',
-      'iv': '4',
-      'v': '5'
-    };
+    // Dynamic acronym from first letters of significant words
+    const stopWords = ['and', 'of', 'the', 'for', 'in', 'on', 'to', 'a', 'an', 'with', 'by', 'from', 'at', 'as', 'is', 'are', 'was', 'were', 'i', 'ii', 'iii', 'iv', 'v', 'using', 'lab', 'laboratory', 'introduction', 'basic', 'advanced', 'theory', 'practical'];
+    const titleWords = course.title.split(/\s+/).filter(word => 
+      word.length > 1 && !stopWords.includes(word.toLowerCase())
+    );
     
-    for (const [roman, number] of Object.entries(romanToNumber)) {
-      if (titleLower.includes(roman) && searchLower === number) {
+    if (titleWords.length >= 2) {
+      // Full acronym from first letters of all significant words
+      const firstLetterAcronym = titleWords.map(word => word[0]).join('').toLowerCase();
+      
+      // Exact match with full first-letter acronym
+      if (firstLetterAcronym === searchLower) {
         return true;
       }
-      if (titleLower.includes(number) && searchLower === roman) {
+      
+      // Check if search matches start of first-letter acronym
+      if (searchLower.length >= 2 && firstLetterAcronym.startsWith(searchLower)) {
+        return true;
+      }
+      
+      // Check if search is contained in first-letter acronym
+      if (searchLower.length >= 2 && firstLetterAcronym.includes(searchLower)) {
+        return true;
+      }
+      
+      // Dynamic partial acronyms - check all possible combinations
+      for (let i = 2; i <= Math.min(titleWords.length, searchLower.length + 2); i++) {
+        const partialAcronym = titleWords.slice(0, i).map(word => word[0]).join('').toLowerCase();
+        if (partialAcronym === searchLower) {
+          return true;
+        }
+      }
+      
+      // Check sliding window acronyms (e.g., for "DS" in "Data Structures and Algorithms")
+      for (let start = 0; start <= titleWords.length - 2; start++) {
+        for (let length = 2; length <= Math.min(4, titleWords.length - start); length++) {
+          const slidingAcronym = titleWords.slice(start, start + length)
+            .map(word => word[0]).join('').toLowerCase();
+          if (slidingAcronym === searchLower) {
+            return true;
+          }
+        }
+      }
+    }
+    
+    // Check for word-level matches (partial word matching)
+    if (titleWords.length > 0) {
+      // Check if search term matches the start of any significant word
+      const matchesWordStart = titleWords.some(word => 
+        word.toLowerCase().startsWith(searchLower) && searchLower.length >= 2
+      );
+      if (matchesWordStart) {
         return true;
       }
     }
     
-    // Match individual words in title
-    const searchWords = searchTerm.toLowerCase().split(/\s+/);
-    if (searchWords.every(searchWord => 
-      titleWords.some(titleWord => titleWord.toLowerCase().includes(searchWord))
-    )) {
-      return true;
+    // Check common course number patterns (Roman numerals)
+    const romanToNumber: { [key: string]: string } = {
+      'i': '1', 'ii': '2', 'iii': '3', 'iv': '4', 'v': '5', 'vi': '6'
+    };
+    
+    for (const [roman, number] of Object.entries(romanToNumber)) {
+      if ((titleLower.includes(roman) && searchLower === number) ||
+          (titleLower.includes(number) && searchLower === roman)) {
+        return true;
+      }
+    }
+    
+    // Match individual words in title (for multi-word searches)
+    if (searchLower.includes(' ')) {
+      const searchWords = searchLower.split(/\s+/).filter(word => word.length > 1);
+      if (searchWords.every(searchWord => 
+        titleWords.some(titleWord => titleWord.toLowerCase().includes(searchWord))
+      )) {
+        return true;
+      }
     }
     
     return false;

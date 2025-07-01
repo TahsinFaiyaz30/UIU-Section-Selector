@@ -369,30 +369,76 @@ const DataView = ({ courses: initialCourses, onBack }: { courses: Course[], onBa
   const handleSearch = (event: React.ChangeEvent<HTMLInputElement>) => {
     const rawTerm = event.target.value;
     setSearchTerm(rawTerm);
-    const term = rawTerm.toLowerCase();
-    const stopWords = ['and', 'of', 'the', 'for', 'if', 'required', 'a', 'an', 'in', 'on', 'to'];
+    const term = rawTerm.toLowerCase().trim();
+    
     const filtered = initialCourses.filter((course) => {
       const titleLower = course.title.toLowerCase();
       const codeLower = course.courseCode.toLowerCase();
       const facultyLower = course.facultyName.toLowerCase();
       const sectionLower = course.section.toLowerCase();
       const initialLower = course.facultyInitial.toLowerCase();
-      // Acronym from title, skipping common stop words
-      const acronym = course.title
-        .split(/\s+/)
-        .filter((w) => !stopWords.includes(w.toLowerCase()))
-        .map((w) => w[0])
-        .join('')
-        .toLowerCase();
-
-      return (
-        titleLower.includes(term) ||
-        codeLower.includes(term) ||
-        facultyLower.includes(term) ||
-        initialLower.includes(term) ||
-        acronym.includes(term) ||
-        sectionLower.includes(term)
+      
+      // Basic matching
+      if (titleLower.includes(term) || codeLower.includes(term) || 
+          facultyLower.includes(term) || initialLower.includes(term) || 
+          sectionLower.includes(term)) {
+        return true;
+      }
+      
+      // Dynamic uppercase letter extraction
+      const upperCaseLetters = course.title.match(/[A-Z]/g);
+      if (upperCaseLetters && upperCaseLetters.length >= 2) {
+        const acronymFromUppercase = upperCaseLetters.join('').toLowerCase();
+        if (acronymFromUppercase === term || acronymFromUppercase.includes(term) || 
+            (term.length >= 2 && acronymFromUppercase.startsWith(term))) {
+          return true;
+        }
+      }
+      
+      // Dynamic acronym from title, skipping common stop words
+      const stopWords = ['and', 'of', 'the', 'for', 'if', 'required', 'a', 'an', 'in', 'on', 'to', 'using', 'lab', 'laboratory', 'introduction', 'basic', 'advanced', 'theory', 'practical'];
+      const titleWords = course.title.split(/\s+/).filter(w => 
+        w.length > 1 && !stopWords.includes(w.toLowerCase())
       );
+      
+      if (titleWords.length >= 2) {
+        // Full acronym from first letters
+        const acronym = titleWords.map(w => w[0]).join('').toLowerCase();
+        if (acronym === term || acronym.includes(term) || term.includes(acronym)) {
+          return true;
+        }
+        
+        // Partial acronyms
+        for (let i = 2; i <= Math.min(titleWords.length, term.length + 2); i++) {
+          const partialAcronym = titleWords.slice(0, i).map(w => w[0]).join('').toLowerCase();
+          if (partialAcronym === term) {
+            return true;
+          }
+        }
+        
+        // Sliding window acronyms
+        for (let start = 0; start <= titleWords.length - 2; start++) {
+          for (let length = 2; length <= Math.min(4, titleWords.length - start); length++) {
+            const slidingAcronym = titleWords.slice(start, start + length)
+              .map(w => w[0]).join('').toLowerCase();
+            if (slidingAcronym === term) {
+              return true;
+            }
+          }
+        }
+      }
+      
+      // Check if search term matches the start of any significant word
+      if (titleWords.length > 0) {
+        const matchesWordStart = titleWords.some(word => 
+          word.toLowerCase().startsWith(term) && term.length >= 2
+        );
+        if (matchesWordStart) {
+          return true;
+        }
+      }
+
+      return false;
     });
     setFilteredCourses(filtered);
   };
