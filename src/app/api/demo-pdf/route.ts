@@ -1,9 +1,25 @@
-import { NextRequest, NextResponse } from 'next/server';
+import { NextResponse } from 'next/server';
 import fs from 'fs';
 import path from 'path';
 import PDFParser from 'pdf2json';
 
-export async function GET() {
+interface PDFTextRun {
+  T: string;
+}
+
+interface PDFText {
+  R: PDFTextRun[];
+}
+
+interface PDFPage {
+  Texts: PDFText[];
+}
+
+interface PDFData {
+  Pages: PDFPage[];
+}
+
+export async function GET(): Promise<NextResponse> {
   try {
     const pdfPath = path.join(process.cwd(), 'CLASS-ROUTINE-252.pdf');
     
@@ -12,20 +28,20 @@ export async function GET() {
       return NextResponse.json({ error: 'Pre-uploaded PDF file not found' }, { status: 404 });
     }
 
-    return new Promise((resolve) => {
+    return new Promise<NextResponse>((resolve) => {
       const pdfParser = new PDFParser();
 
-      pdfParser.on('pdfParser_dataError', (errData: any) => {
+      pdfParser.on('pdfParser_dataError', (errData: Record<"parserError", Error>) => {
         console.error('PDF parsing error:', errData.parserError);
         resolve(NextResponse.json({ error: 'Failed to parse the pre-uploaded PDF file' }, { status: 500 }));
       });
 
-      pdfParser.on('pdfParser_dataReady', (pdfData: any) => {
+      pdfParser.on('pdfParser_dataReady', (pdfData: PDFData) => {
         try {
           let text = '';
-          pdfData.Pages.forEach((page: any) => {
-            page.Texts.forEach((textItem: any) => {
-              textItem.R.forEach((textRun: any) => {
+          pdfData.Pages.forEach((page: PDFPage) => {
+            page.Texts.forEach((textItem: PDFText) => {
+              textItem.R.forEach((textRun: PDFTextRun) => {
                 text += decodeURIComponent(textRun.T) + ' ';
               });
             });

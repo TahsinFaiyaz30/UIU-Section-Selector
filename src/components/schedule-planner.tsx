@@ -856,9 +856,9 @@ const SchedulePlanner = ({ courses }: SchedulePlannerProps) => {
                 {/* No results message */}
                 {(isCourseSearchFocused || courseSearchTerm) && getFilteredCourses().length === 0 && courseSearchTerm && (
                   <div className="absolute top-full left-0 right-0 z-50 bg-popover border rounded-md shadow-md mt-1 p-3">
-                    <div className="text-sm text-muted-foreground">No courses found matching "{courseSearchTerm}"</div>
+                    <div className="text-sm text-muted-foreground">No courses found matching &ldquo;{courseSearchTerm}&rdquo;</div>
                     <div className="text-xs text-muted-foreground mt-1">
-                      Try searching with course code, full name, or abbreviations like "DSA", "DM", etc.
+                      Try searching with course code, full name, or abbreviations like &ldquo;DSA&rdquo;, &ldquo;DM&rdquo;, etc.
                     </div>
                   </div>
                 )}
@@ -942,7 +942,7 @@ const SchedulePlanner = ({ courses }: SchedulePlannerProps) => {
                 {/* No faculty results message */}
                 {courseSelection.selectedCourses.length > 0 && (isFacultySearchFocused || facultySearchTerm) && getFilteredFaculties().length === 0 && facultySearchTerm && (
                   <div className="absolute top-full left-0 right-0 z-50 bg-popover border rounded-md shadow-md mt-1 p-3">
-                    <div className="text-sm text-muted-foreground">No faculty found matching "{facultySearchTerm}"</div>
+                    <div className="text-sm text-muted-foreground">No faculty found matching &ldquo;{facultySearchTerm}&rdquo;</div>
                   </div>
                 )}
               </div>

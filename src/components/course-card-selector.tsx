@@ -267,6 +267,7 @@ const CourseCard = ({
         }
       }
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [cardData.selectedCourse, cardData.selectedFaculty, cardData.selectedDay, cardData.selectedTime]);
 
   const handleCourseSelect = (courseString: string) => {
@@ -307,18 +308,6 @@ const CourseCard = ({
     setFacultySearchTerm("");
     setIsCourseFocused(false);
     setIsFacultyFocused(false);
-  };
-
-  const handleAddSection = () => {
-    if (cardData.finalSection) {
-      onAddSection(cardData.finalSection);
-    }
-  };
-
-  const handleRemoveSection = () => {
-    if (cardData.finalSection) {
-      onRemoveSection(cardData.finalSection);
-    }
   };
 
   // Check if the final section is already selected
@@ -398,9 +387,9 @@ const CourseCard = ({
               )}
               {!cardData.selectedCourse && (isCourseFocused || searchTerm) && filteredCourses.length === 0 && searchTerm && (
                 <div className="absolute top-full left-0 right-0 z-50 bg-popover border rounded-md shadow-md mt-1 p-3">
-                  <div className="text-sm text-muted-foreground">No courses found matching "{searchTerm}"</div>
+                  <div className="text-sm text-muted-foreground">No courses found matching &ldquo;{searchTerm}&rdquo;</div>
                   <div className="text-xs text-muted-foreground mt-1">
-                    Try searching with course code, full name, or abbreviations like "DSA", "DM", etc.
+                    Try searching with course code, full name, or abbreviations like &ldquo;DSA&rdquo;, &ldquo;DM&rdquo;, etc.
                   </div>
                 </div>
               )}
@@ -472,7 +461,7 @@ const CourseCard = ({
               )}
               {!cardData.selectedFaculty && cardData.selectedCourse && (isFacultyFocused || facultySearchTerm) && filteredFaculties.length === 0 && facultySearchTerm && (
                 <div className="absolute top-full left-0 right-0 z-50 bg-popover border rounded-md shadow-md mt-1 p-3">
-                  <div className="text-sm text-muted-foreground">No faculty found matching "{facultySearchTerm}"</div>
+                  <div className="text-sm text-muted-foreground">No faculty found matching &ldquo;{facultySearchTerm}&rdquo;</div>
                 </div>
               )}
               {cardData.selectedFaculty && (

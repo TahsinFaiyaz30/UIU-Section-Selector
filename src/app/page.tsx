@@ -5,14 +5,6 @@ import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
-import {
   Card,
   CardContent,
   CardDescription,
@@ -57,7 +49,7 @@ const parsePdfText = (text: string): Course[] => {
 
   console.log(`Found ${courseBlocks.length} potential course blocks.`);
 
-  courseBlocks.forEach((block, index) => {
+  courseBlocks.forEach((block) => {
     try {
       // Remove any trailing header/footer junk that might appear after a course block
       const junkKeywords = ['CLASS ROUTINE', 'United International University', 'Course Offerings'];
