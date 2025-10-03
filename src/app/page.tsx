@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useRef } from "react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -11,8 +11,25 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import CourseCardSelector from "@/components/course-card-selector";
 import SchedulePlanner from "@/components/schedule-planner";
+import {
+  exportPlanAsPDF,
+  exportPlanAsPNG,
+  exportPlanAsExcel,
+  exportPlanAsCalendar,
+  exportAllPlansAsPDF,
+  exportAllPlansAsPNG,
+  exportAllPlansAsExcel,
+  exportAllPlansAsCalendar
+} from "@/lib/exportUtils";
 
 interface Course {
   program: string;
@@ -288,18 +305,18 @@ const UploadView = ({ onPdfProcessed }: { onPdfProcessed: (courses: Course[]) =>
   }
 
   return (
-    <div className="flex items-center justify-center min-h-[calc(100vh-8rem)] p-4">
+    <div className="flex items-center justify-center min-h-[calc(100vh-8rem)] p-3 sm:p-4 md:p-6">
       <Card 
         className={`w-full max-w-lg border-2 border-dashed transition-colors ${isDragging ? 'border-primary bg-muted/50' : 'border-border'}`}
         onDragOver={handleDragOver}
         onDragLeave={handleDragLeave}
         onDrop={handleDrop}
       >
-        <CardHeader className="text-center">
-          <CardTitle className="text-2xl">Choose Your Course Data</CardTitle>
-          <CardDescription>Use pre-uploaded course data or upload your own PDF file</CardDescription>
+        <CardHeader className="text-center px-4 sm:px-6">
+          <CardTitle className="text-xl sm:text-2xl">Choose Your Course Data</CardTitle>
+          <CardDescription className="text-sm">Use pre-uploaded course data or upload your own PDF file</CardDescription>
         </CardHeader>
-        <CardContent className="text-center p-6">
+        <CardContent className="text-center p-4 sm:p-6">
           <div className="space-y-6">
             {/* Pre-uploaded Section */}
             <div className="space-y-3 p-4 bg-gradient-to-r from-blue-50 to-indigo-50 dark:from-blue-950/20 dark:to-indigo-950/20 rounded-lg border border-blue-200 dark:border-blue-800">
@@ -360,11 +377,69 @@ const UploadView = ({ onPdfProcessed }: { onPdfProcessed: (courses: Course[]) =>
   );
 };
 
+interface SectionPlan {
+  id: string;
+  name: string;
+  courses: Course[];
+}
+
 const DataView = ({ courses: initialCourses, onBack }: { courses: Course[], onBack: () => void }) => {
   const [filteredCourses, setFilteredCourses] = useState<Course[]>(initialCourses);
-  const [selectedCourses, setSelectedCourses] = useState<Course[]>([]);
+  const [sectionPlans, setSectionPlans] = useState<SectionPlan[]>([
+    { id: '1', name: 'Section Plan 1', courses: [] }
+  ]);
   const [searchTerm, setSearchTerm] = useState("");
   const [viewMode, setViewMode] = useState<'card' | 'table' | 'planner'>('card');
+  const [expandedPlans, setExpandedPlans] = useState<Set<string>>(new Set(sectionPlans.map(p => p.id)));
+  const [sectionPlansVisible, setSectionPlansVisible] = useState(false);
+  
+  // Refs for scrolling to specific plans
+  const planRefs = useRef<Map<string, HTMLDivElement | null>>(new Map());
+  
+  // Computed: all selected courses across all plans
+  const selectedCourses = sectionPlans.flatMap(plan => plan.courses);
+
+  const togglePlanExpanded = (planId: string) => {
+    setExpandedPlans(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(planId)) {
+        newSet.delete(planId);
+      } else {
+        newSet.add(planId);
+      }
+      return newSet;
+    });
+  };
+
+  // Function to navigate to a specific plan
+  const handleNavigateToPlan = (planId: string) => {
+    // First, make sure Section Plans is visible
+    setSectionPlansVisible(true);
+    
+    // Then, make sure the specific plan is expanded
+    setExpandedPlans(prev => {
+      const newSet = new Set(prev);
+      newSet.add(planId);
+      return newSet;
+    });
+    
+    // Wait for state updates to render, then scroll
+    setTimeout(() => {
+      const planElement = planRefs.current.get(planId);
+      if (planElement) {
+        planElement.scrollIntoView({ 
+          behavior: 'smooth', 
+          block: 'center' 
+        });
+        
+        // Highlight the plan briefly
+        planElement.classList.add('ring-4', 'ring-red-500');
+        setTimeout(() => {
+          planElement.classList.remove('ring-4', 'ring-red-500');
+        }, 2000);
+      }
+    }, 100);
+  };
 
   const handleSearch = (event: React.ChangeEvent<HTMLInputElement>) => {
     const rawTerm = event.target.value;
@@ -443,130 +518,530 @@ const DataView = ({ courses: initialCourses, onBack }: { courses: Course[], onBa
     setFilteredCourses(filtered);
   };
 
-  const handleSelectCourse = (course: Course) => {
-    setSelectedCourses(prev => {
-        const isSelected = prev.some(c => c.courseCode === course.courseCode && c.section === course.section);
-        if (isSelected) {
-            return prev.filter(c => !(c.courseCode === course.courseCode && c.section === course.section));
-        } else {
-            return [...prev, course];
-        }
+  const handleSelectCourse = (course: Course, planId?: string) => {
+    // If planId is not provided, check if course exists in any plan and remove it from ALL plans
+    if (!planId) {
+      const plansWithCourse = sectionPlans.filter(plan => 
+        plan.courses.some(c => c.courseCode === course.courseCode && c.section === course.section)
+      );
+      
+      if (plansWithCourse.length > 0) {
+        // Remove from all plans that have this course
+        setSectionPlans(prev => prev.map(plan => ({
+          ...plan,
+          courses: plan.courses.filter(c => !(c.courseCode === course.courseCode && c.section === course.section))
+        })));
+        toast.info(`Removed ${course.courseCode} ${course.section} from all plans`);
+        return;
+      }
+      
+      // If not in any plan and no planId specified, add to first plan
+      planId = sectionPlans[0].id;
+    }
+    
+    // Determine target plan
+    const targetPlanId = planId;
+    const targetPlan = sectionPlans.find(p => p.id === targetPlanId);
+    
+    if (!targetPlan) return;
+    
+    // Check if target plan already has this exact course (same course code AND section)
+    const exactCourseInTargetPlan = targetPlan.courses.find(
+      c => c.courseCode === course.courseCode && c.section === course.section
+    );
+    
+    if (exactCourseInTargetPlan) {
+      // This exact course is already in the target plan, so remove it
+      const planName = targetPlan.name;
+      setSectionPlans(prev => prev.map(plan => 
+        plan.id === targetPlanId 
+          ? { ...plan, courses: plan.courses.filter(c => !(c.courseCode === course.courseCode && c.section === course.section)) }
+          : plan
+      ));
+      toast.info(`Removed ${course.courseCode} ${course.section} from ${planName}`);
+      return;
+    }
+    
+    // Check if target plan already has this course with a different section
+    const existingCourseInPlan = targetPlan.courses.find(c => c.courseCode === course.courseCode);
+    
+    if (existingCourseInPlan) {
+      // Don't allow adding the same course (different section) to the same plan
+      toast.error(`${course.courseCode} is already in ${targetPlan.name}. Use move/swap to exchange sections.`);
+      return;
+    }
+    
+    // Add to target plan
+    const planName = targetPlan.name;
+    setSectionPlans(prev => prev.map(plan => 
+      plan.id === targetPlanId 
+        ? { ...plan, courses: [...plan.courses, course] }
+        : plan
+    ));
+    
+    toast.success(`Added ${course.courseCode} ${course.section} to ${planName}`);
+  };
+
+  const handleMoveCourse = (course: Course, fromPlanId: string, toPlanId: string) => {
+    setSectionPlans(prev => {
+      const newPlans = prev.map(plan => ({ ...plan, courses: [...plan.courses] }));
+      
+      // Find the source and target plans
+      const fromPlan = newPlans.find(p => p.id === fromPlanId);
+      const toPlan = newPlans.find(p => p.id === toPlanId);
+      
+      if (!fromPlan || !toPlan) return prev;
+      
+      // Find the course in the source plan
+      const courseIndex = fromPlan.courses.findIndex(
+        c => c.courseCode === course.courseCode && c.section === course.section
+      );
+      
+      if (courseIndex === -1) return prev;
+      
+      // Check if target plan has the same course (same course code, any section)
+      const existingCourseIndex = toPlan.courses.findIndex(
+        c => c.courseCode === course.courseCode
+      );
+      
+      if (existingCourseIndex !== -1) {
+        // SWAP: Exchange the courses
+        const existingCourse = toPlan.courses[existingCourseIndex];
+        const movingCourse = fromPlan.courses[courseIndex];
+        
+        // Get plan names for toast
+        const fromPlanName = prev.find(p => p.id === fromPlanId)?.name || 'Plan';
+        const toPlanName = prev.find(p => p.id === toPlanId)?.name || 'Plan';
+        
+        // Replace in target plan
+        toPlan.courses[existingCourseIndex] = movingCourse;
+        
+        // Replace in source plan
+        fromPlan.courses[courseIndex] = existingCourse;
+        
+        toast.success(`Swapped ${course.courseCode} sections between plans`, {
+          description: `${fromPlanName}: Section ${existingCourse.section} ↔ ${toPlanName}: Section ${movingCourse.section}`
+        });
+      } else {
+        // MOVE: Just move the course
+        const [movedCourse] = fromPlan.courses.splice(courseIndex, 1);
+        toPlan.courses.push(movedCourse);
+        
+        const fromPlanName = prev.find(p => p.id === fromPlanId)?.name || 'Plan';
+        const toPlanName = prev.find(p => p.id === toPlanId)?.name || 'Plan';
+        
+        toast.success(`Moved ${course.courseCode} from ${fromPlanName} to ${toPlanName}`);
+      }
+      
+      return newPlans;
     });
   };
 
+  const handleRemoveCourse = (course: Course, planId: string) => {
+    setSectionPlans(prev => prev.map(plan => 
+      plan.id === planId 
+        ? { ...plan, courses: plan.courses.filter(c => !(c.courseCode === course.courseCode && c.section === course.section)) }
+        : plan
+    ));
+  };
+
+  const handleAddNewPlan = () => {
+    const newId = (Math.max(...sectionPlans.map(p => parseInt(p.id)), 0) + 1).toString();
+    setSectionPlans(prev => [...prev, { 
+      id: newId, 
+      name: `Section Plan ${newId}`, 
+      courses: [] 
+    }]);
+    // Expand the newly created plan
+    setExpandedPlans(prev => new Set([...prev, newId]));
+    toast.success('New section plan added');
+  };
+
+  const handleAddPlanFromSchedule = (courses: Course[], scheduleName: string) => {
+    // Find a unique name by checking existing plan names
+    let finalName = scheduleName;
+    let counter = 1;
+    
+    // Extract the base name and number if it exists
+    const baseNameMatch = scheduleName.match(/^(.*?)(\d+)$/);
+    const baseName = baseNameMatch ? baseNameMatch[1].trim() : scheduleName;
+    
+    // Check if name exists and increment until we find a unique one
+    while (sectionPlans.some(plan => plan.name === finalName)) {
+      counter++;
+      finalName = `${baseName} ${counter}`;
+    }
+    
+    const newId = (Math.max(...sectionPlans.map(p => parseInt(p.id)), 0) + 1).toString();
+    setSectionPlans(prev => [...prev, { 
+      id: newId, 
+      name: finalName, 
+      courses: courses 
+    }]);
+    // Expand the newly created plan
+    setExpandedPlans(prev => new Set([...prev, newId]));
+    // Stay in Schedule Planner view
+    toast.success(`Added "${finalName}" as a new section plan`);
+  };
+
+  const handleDeletePlan = (planId: string) => {
+    if (sectionPlans.length === 1) {
+      toast.error('Cannot delete the last plan');
+      return;
+    }
+    setSectionPlans(prev => prev.filter(p => p.id !== planId));
+    // Remove from expanded plans
+    setExpandedPlans(prev => {
+      const newSet = new Set(prev);
+      newSet.delete(planId);
+      return newSet;
+    });
+    toast.success('Section plan deleted');
+  };
+
+  const handleRenamePlan = (planId: string, newName: string) => {
+    setSectionPlans(prev => prev.map(plan => 
+      plan.id === planId ? { ...plan, name: newName } : plan
+    ));
+  };
+
   const handleClearAllSelected = () => {
-    setSelectedCourses([]);
+    setSectionPlans(prev => prev.map(plan => ({ ...plan, courses: [] })));
   };
 
   const isCourseSelected = (course: Course) => {
     return selectedCourses.some(c => c.courseCode === course.courseCode && c.section === course.section);
   }
 
+  // Helper function to check for conflicts within a specific plan
+  const hasConflictInPlan = (course: Course, plan: SectionPlan): boolean => {
+    const parseTime = (timeStr: string): { start: number; end: number } | null => {
+      if (!timeStr) return null;
+      
+      // Updated regex to handle formats like "11:11:AM - 12:30:PM" (no space before AM/PM)
+      const match = timeStr.match(/(\d+):(\d+)\s*:?\s*([AP]M)?\s*-\s*(\d+):(\d+)\s*:?\s*([AP]M)?/i);
+      
+      if (!match) return null;
+      
+      let startHour = parseInt(match[1]);
+      const startMin = parseInt(match[2]);
+      const startPeriod = match[3]?.toUpperCase();
+      let endHour = parseInt(match[4]);
+      const endMin = parseInt(match[5]);
+      const endPeriod = match[6]?.toUpperCase();
+      
+      // If no period specified for start, inherit from end
+      const effectiveStartPeriod = startPeriod || endPeriod;
+      const effectiveEndPeriod = endPeriod || startPeriod;
+      
+      if (effectiveStartPeriod === 'PM' && startHour !== 12) startHour += 12;
+      if (effectiveStartPeriod === 'AM' && startHour === 12) startHour = 0;
+      if (effectiveEndPeriod === 'PM' && endHour !== 12) endHour += 12;
+      if (effectiveEndPeriod === 'AM' && endHour === 12) endHour = 0;
+      
+      return {
+        start: startHour * 60 + startMin,
+        end: endHour * 60 + endMin
+      };
+    };
+
+    const timesOverlap = (time1: string, time2: string): boolean => {
+      const t1 = parseTime(time1);
+      const t2 = parseTime(time2);
+      if (!t1 || !t2) return false;
+      return (t1.start < t2.end) && (t2.start < t1.end);
+    };
+
+    const courseDays = [course.day1, course.day2].filter(Boolean);
+    const courseTimes = [course.time1, course.time2].filter(Boolean);
+
+    return plan.courses.some(existingCourse => {
+      if (existingCourse.courseCode === course.courseCode && 
+          existingCourse.section === course.section) {
+        return false;
+      }
+
+      const existingDays = [existingCourse.day1, existingCourse.day2].filter(Boolean);
+      const existingTimes = [existingCourse.time1, existingCourse.time2].filter(Boolean);
+
+      const hasCommonDay = courseDays.some(day => existingDays.includes(day));
+      if (!hasCommonDay) return false;
+
+      return courseTimes.some(time => 
+        existingTimes.some(existingTime => timesOverlap(time, existingTime))
+      );
+    });
+  };
+
   return (
-    <div className="container mx-auto p-4 min-h-[calc(100vh-8rem)]">
-      <div className="flex justify-between items-center mb-4">
-        <Button onClick={onBack}>Back to Upload</Button>
-        <div className="flex gap-2">
+    <div className="container mx-auto p-3 sm:p-4 md:p-6 min-h-[calc(100vh-8rem)]">
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 sm:gap-4 mb-4">
+        <Button onClick={onBack} size="sm" className="w-full sm:w-auto">Back to Upload</Button>
+        <div className="flex flex-wrap gap-2 w-full sm:w-auto">
           <Button 
             variant={viewMode === 'card' ? 'default' : 'outline'}
             onClick={() => setViewMode('card')}
+            size="sm"
+            className="flex-1 sm:flex-none text-xs sm:text-sm"
           >
             Card Selector
           </Button>
           <Button 
             variant={viewMode === 'table' ? 'default' : 'outline'}
             onClick={() => setViewMode('table')}
+            size="sm"
+            className="flex-1 sm:flex-none text-xs sm:text-sm"
           >
             Bulk Selector
           </Button>
           <Button 
             variant={viewMode === 'planner' ? 'default' : 'outline'}
             onClick={() => setViewMode('planner')}
+            size="sm"
+            className="flex-1 sm:flex-none text-xs sm:text-sm"
           >
             Schedule Planner
           </Button>
         </div>
       </div>
       <div className="flex flex-col gap-4">
-        {/* Only show Selected Sections card for card and table modes */}
-        {viewMode !== 'planner' && (
-          <div className="w-full">
-              <Card>
-                  <CardHeader>
-                      <CardTitle>Selected Sections</CardTitle>
-                      <CardDescription>These are the sections you have chosen.</CardDescription>
-                  </CardHeader>
-                  <CardContent>
-                      {selectedCourses.length === 0 ? (
-                          <p>No sections selected.</p>
-                      ) : (
-                          <div className="overflow-auto max-h-[40vh] w-full border rounded-md">
-                            <table className="w-full border-collapse">
-                              <thead>
-                                <tr>
-                                  <th className="sticky top-0 bg-white dark:bg-gray-950 z-20 border-b px-2 py-3 text-left font-medium text-sm">Course Code</th>
-                                  <th className="sticky top-0 bg-white dark:bg-gray-950 z-20 border-b px-2 py-3 text-left font-medium text-sm">Course Name</th>
-                                  <th className="sticky top-0 bg-white dark:bg-gray-950 z-20 border-b px-2 py-3 text-left font-medium text-sm">Section</th>
-                                  <th className="sticky top-0 bg-white dark:bg-gray-950 z-20 border-b px-2 py-3 text-left font-medium text-sm">Faculty</th>
-                                  <th className="sticky top-0 bg-white dark:bg-gray-950 z-20 border-b px-2 py-3 text-left font-medium text-sm">Credit</th>
-                                  <th className="sticky top-0 bg-white dark:bg-gray-950 z-20 border-b px-2 py-3 text-left font-medium text-sm">Days</th>
-                                  <th className="sticky top-0 bg-white dark:bg-gray-950 z-20 border-b px-2 py-3 text-left font-medium text-sm">Time</th>
-                                  <th className="sticky top-0 bg-white dark:bg-gray-950 z-20 border-b px-2 py-3 text-left font-medium text-sm">Room</th>
-                                  <th className="sticky top-0 bg-white dark:bg-gray-950 z-20 border-b px-2 py-3 text-left font-medium text-sm">Action</th>
-                                </tr>
-                              </thead>
-                              <tbody>
-                                {selectedCourses.map((course, index) => (
-                                  <tr
-                                    key={`${course.courseCode}-${course.section}-${index}-selected`}
-                                    className="border-b hover:bg-muted/50"
-                                  >
-                                    <td className="px-2 py-1 break-words text-sm">{course.courseCode}</td>
-                                    <td className="px-2 py-1 break-words text-sm">{course.title}</td>
-                                    <td className="px-2 py-1 break-words text-sm">{course.section}</td>
-                                    <td className="px-2 py-1 break-words text-sm">
-                                      {course.facultyName === "TBA"
-                                        ? "TBA"
-                                        : `${course.facultyName} (${course.facultyInitial})`}
-                                    </td>
-                                    <td className="px-2 py-1 break-words text-sm">{course.credit}</td>
-                                    <td className="px-2 py-1 break-words text-sm">
-                                      {course.day1}{course.day2 ? ` - ${course.day2}` : ''}
-                                    </td>
-                                    <td className="px-2 py-1 break-words text-sm">
-                                      {course.time1}
-                                      {course.time2 && course.time2 !== course.time1 && (
-                                        <div>{course.time2}</div>
-                                      )}
-                                    </td>
-                                    <td className="px-2 py-1 break-words text-sm">
-                                      {course.room1}{course.room2 && course.room2 !== course.room1 ? ` - ${course.room2}` : ''}
-                                    </td>
-                                    <td className="px-2 py-1">
-                                      <Button size="sm" variant="outline" onClick={() => handleSelectCourse(course)}>
-                                        Remove
-                                      </Button>
-                                    </td>
-                                  </tr>
-                                ))}
-                              </tbody>
-                            </table>
-                          </div>
-                      )}
-                  </CardContent>
-              </Card>
+        {/* Show Section Plans in all views */}
+        <div className="w-full space-y-4">
+          {/* Add New Plan and Export All Buttons */}
+          <div className="flex flex-col gap-3">
+            <div className="w-full flex flex-col sm:flex-row items-start sm:items-center justify-between bg-muted/30 hover:bg-muted/60 px-3 sm:px-4 py-3 rounded-lg transition-colors border border-border shadow-sm gap-2">
+              <button
+                onClick={() => setSectionPlansVisible(!sectionPlansVisible)}
+                className="flex items-center gap-2 cursor-pointer flex-1 w-full sm:w-auto"
+              >
+                <span className="text-lg font-semibold">
+                  {sectionPlansVisible ? '▼' : '▶'}
+                </span>
+                <h2 className="text-lg sm:text-xl font-semibold">Section Plans</h2>
+                <span className="text-xs sm:text-sm text-muted-foreground ml-1">
+                  ({sectionPlans.length} plan{sectionPlans.length !== 1 ? 's' : ''})
+                </span>
+              </button>
+              <div className="flex flex-wrap gap-2 w-full sm:w-auto">
+                <Button onClick={handleAddNewPlan} size="sm" variant="outline" className="text-xs sm:text-sm flex-1 sm:flex-none">
+                  + Add New Plan
+                </Button>
+                {sectionPlans.length > 0 && sectionPlans.some(p => p.courses.length > 0) && (
+                  <Select value="" onValueChange={(value) => {
+                    const plansWithCourses = sectionPlans.filter(p => p.courses.length > 0);
+                    if (value === 'pdf') exportAllPlansAsPDF(plansWithCourses);
+                    else if (value === 'png') exportAllPlansAsPNG(plansWithCourses);
+                    else if (value === 'excel') exportAllPlansAsExcel(plansWithCourses);
+                    else if (value === 'calendar') exportAllPlansAsCalendar(plansWithCourses);
+                  }}>
+                    <SelectTrigger className="h-9 text-xs sm:text-sm w-full sm:w-[140px] md:w-[160px]">
+                      <SelectValue placeholder="Export All as..." />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="pdf">📄 PDF</SelectItem>
+                      <SelectItem value="png">🖼️ PNG</SelectItem>
+                      <SelectItem value="excel">📊 Excel</SelectItem>
+                      <SelectItem value="calendar">📅 Calendar</SelectItem>
+                    </SelectContent>
+                  </Select>
+                )}
+              </div>
+            </div>
           </div>
-        )}
+
+            {/* Section Plans */}
+            {sectionPlansVisible && sectionPlans.map((plan) => (
+              <Card 
+                key={plan.id} 
+                id={`plan-card-${plan.id}`}
+                className="transition-all duration-300"
+                ref={(el) => {
+                  if (el) {
+                    planRefs.current.set(plan.id, el);
+                  } else {
+                    planRefs.current.delete(plan.id);
+                  }
+                }}
+              >
+                <CardHeader className="px-4 sm:px-6">
+                  <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2">
+                    <div className="flex items-center gap-2 flex-1 w-full sm:w-auto">
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => togglePlanExpanded(plan.id)}
+                        className="p-1 h-auto"
+                      >
+                        {expandedPlans.has(plan.id) ? '▼' : '▶'}
+                      </Button>
+                      <Input
+                        value={plan.name}
+                        onChange={(e) => handleRenamePlan(plan.id, e.target.value)}
+                        className="text-base sm:text-lg font-semibold max-w-xs"
+                      />
+                      <span className="text-xs sm:text-sm text-muted-foreground whitespace-nowrap">
+                        ({plan.courses.length} course{plan.courses.length !== 1 ? 's' : ''})
+                      </span>
+                    </div>
+                    <div className="grid grid-cols-2 sm:flex gap-2 w-full sm:w-auto">
+                      {plan.courses.length > 0 && (
+                        <Select value="" onValueChange={(value) => {
+                          if (value === 'pdf') exportPlanAsPDF(plan);
+                          else if (value === 'png') exportPlanAsPNG(plan);
+                          else if (value === 'excel') exportPlanAsExcel(plan);
+                          else if (value === 'calendar') exportPlanAsCalendar(plan);
+                        }}>
+                          <SelectTrigger className="h-8 text-xs w-full sm:w-[100px] md:w-[120px]">
+                            <SelectValue placeholder="Export as..." />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="pdf">📄 PDF</SelectItem>
+                            <SelectItem value="png">🖼️ PNG</SelectItem>
+                            <SelectItem value="excel">📊 Excel</SelectItem>
+                            <SelectItem value="calendar">📅 Calendar</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      )}
+                      {sectionPlans.length > 1 && (
+                        <Button 
+                          onClick={() => handleDeletePlan(plan.id)} 
+                          size="sm" 
+                          variant="destructive"
+                          className="text-xs w-full sm:w-auto"
+                        >
+                          Delete Plan
+                        </Button>
+                      )}
+                    </div>
+                  </div>
+                  <CardDescription>
+                    {plan.courses.length === 0 
+                      ? 'No sections selected in this plan.' 
+                      : 'Selected sections for this plan.'}
+                  </CardDescription>
+                </CardHeader>
+                {expandedPlans.has(plan.id) && (
+                  <CardContent className="px-4 sm:px-6">
+                    {plan.courses.length === 0 ? (
+                      <p className="text-sm text-muted-foreground">
+                        Start selecting courses from the options below.
+                      </p>
+                    ) : (
+                    <div className="overflow-x-auto max-h-[40vh] w-full border rounded-md" id={`plan-table-${plan.id}`}>
+                      <table className="w-full border-collapse min-w-[900px]">
+                        <thead>
+                          <tr>
+                            <th className="sticky top-0 bg-white dark:bg-gray-950 z-20 border-b px-2 py-2 sm:py-3 text-left font-medium text-xs sm:text-sm">Course Code</th>
+                            <th className="sticky top-0 bg-white dark:bg-gray-950 z-20 border-b px-2 py-2 sm:py-3 text-left font-medium text-xs sm:text-sm">Course Name</th>
+                            <th className="sticky top-0 bg-white dark:bg-gray-950 z-20 border-b px-2 py-2 sm:py-3 text-left font-medium text-xs sm:text-sm">Section</th>
+                            <th className="sticky top-0 bg-white dark:bg-gray-950 z-20 border-b px-2 py-2 sm:py-3 text-left font-medium text-xs sm:text-sm">Faculty</th>
+                            <th className="sticky top-0 bg-white dark:bg-gray-950 z-20 border-b px-2 py-2 sm:py-3 text-left font-medium text-xs sm:text-sm">Credit</th>
+                            <th className="sticky top-0 bg-white dark:bg-gray-950 z-20 border-b px-2 py-2 sm:py-3 text-left font-medium text-xs sm:text-sm">Days</th>
+                            <th className="sticky top-0 bg-white dark:bg-gray-950 z-20 border-b px-2 py-2 sm:py-3 text-left font-medium text-xs sm:text-sm">Time</th>
+                            <th className="sticky top-0 bg-white dark:bg-gray-950 z-20 border-b px-2 py-2 sm:py-3 text-left font-medium text-xs sm:text-sm">Room</th>
+                            <th className="sticky top-0 bg-white dark:bg-gray-950 z-20 border-b px-2 py-2 sm:py-3 text-left font-medium text-xs sm:text-sm">Actions</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {plan.courses.map((course, index) => {
+                            const hasConflict = hasConflictInPlan(course, plan);
+                            return (
+                            <tr
+                              key={`${plan.id}-${course.courseCode}-${course.section}-${index}`}
+                              className={`border-b hover:bg-muted/50 ${hasConflict ? 'bg-red-50 dark:bg-red-950/20' : ''}`}
+                            >
+                              <td className="px-2 py-1 break-words text-xs sm:text-sm">
+                                {hasConflict && <span className="text-red-600 mr-1">⚠️</span>}
+                                {course.courseCode}
+                              </td>
+                              <td className="px-2 py-1 break-words text-xs sm:text-sm">{course.title}</td>
+                              <td className="px-2 py-1 break-words text-xs sm:text-sm">{course.section}</td>
+                              <td className="px-2 py-1 break-words text-xs sm:text-sm">
+                                {course.facultyName === "TBA"
+                                  ? "TBA"
+                                  : `${course.facultyName} (${course.facultyInitial})`}
+                              </td>
+                              <td className="px-2 py-1 break-words text-xs sm:text-sm">{course.credit}</td>
+                              <td className="px-2 py-1 break-words text-xs sm:text-sm whitespace-nowrap">
+                                {course.day1}{course.day2 ? ` - ${course.day2}` : ''}
+                              </td>
+                              <td className="px-2 py-1 break-words text-xs sm:text-sm whitespace-nowrap">
+                                {course.time1}
+                                {course.time2 && course.time2 !== course.time1 && (
+                                  <div>{course.time2}</div>
+                                )}
+                              </td>
+                              <td className="px-2 py-1 break-words text-xs sm:text-sm">
+                                {course.room1}{course.room2 && course.room2 !== course.room1 ? ` - ${course.room2}` : ''}
+                              </td>
+                              <td className="px-2 py-1">
+                                <div className="flex gap-1 whitespace-nowrap">
+                                  <Button 
+                                    size="sm" 
+                                    variant="outline" 
+                                    onClick={() => handleRemoveCourse(course, plan.id)} 
+                                    className="text-xs"
+                                  >
+                                    Remove
+                                  </Button>
+                                  {sectionPlans.length > 1 && (
+                                    <Select 
+                                      value=""
+                                      onValueChange={(toPlanId) => handleMoveCourse(course, plan.id, toPlanId)}
+                                    >
+                                      <SelectTrigger className="h-8 text-xs w-[100px]">
+                                        <SelectValue placeholder="Move to..." />
+                                      </SelectTrigger>
+                                      <SelectContent>
+                                        {sectionPlans
+                                          .filter(p => p.id !== plan.id)
+                                          .map(p => {
+                                            const wouldConflict = hasConflictInPlan(course, p);
+                                            const alreadyHasCourse = p.courses.some(c => 
+                                              c.courseCode === course.courseCode && c.section === course.section
+                                            );
+                                            
+                                            return (
+                                              <SelectItem 
+                                                key={p.id} 
+                                                value={p.id} 
+                                                className={`text-xs ${wouldConflict ? 'text-red-600 dark:text-red-400' : ''}`}
+                                                disabled={alreadyHasCourse}
+                                              >
+                                                {wouldConflict && '⚠️ '}
+                                                {p.name}
+                                                {alreadyHasCourse ? ' (Has this)' : wouldConflict ? ' (Will conflict)' : ''}
+                                              </SelectItem>
+                                            );
+                                          })}
+                                      </SelectContent>
+                                    </Select>
+                                  )}
+                                </div>
+                              </td>
+                            </tr>
+                            );
+                          })}
+                        </tbody>
+                      </table>
+                    </div>
+                    )}
+                  </CardContent>
+                )}
+              </Card>
+            ))}
+          </div>
 
         {/* Content based on view mode */}
         {viewMode === 'planner' ? (
-          <SchedulePlanner courses={initialCourses} />
+          <SchedulePlanner courses={initialCourses} onAddPlanFromSchedule={handleAddPlanFromSchedule} />
         ) : viewMode === 'card' ? (
           <CourseCardSelector 
             courses={initialCourses} 
-            selectedCourses={selectedCourses}
+            sectionPlans={sectionPlans}
             onCourseSelect={handleSelectCourse}
             onClearAllSelected={handleClearAllSelected}
+            onNavigateToPlan={handleNavigateToPlan}
           />
         ) : (
           <div className="w-full">
@@ -583,19 +1058,19 @@ const DataView = ({ courses: initialCourses, onBack }: { courses: Course[], onBa
                   placeholder="Search by course, title, faculty, or section"
                   value={searchTerm}
                   onChange={handleSearch}
-                  className="mb-4"
+                  className="mb-4 text-sm"
                 />
-                <div className="overflow-auto max-h-[60vh] w-full border rounded-md">
-                  <table className="w-full border-collapse">
+                <div className="overflow-x-auto max-h-[60vh] w-full border rounded-md">
+                  <table className="w-full border-collapse min-w-[800px]">
                     <thead>
                       <tr>
-                        <th className="sticky top-0 bg-white dark:bg-gray-950 z-20 border-b px-2 py-3 text-left font-medium text-sm">Code</th>
-                        <th className="sticky top-0 bg-white dark:bg-gray-950 z-20 border-b px-2 py-3 text-left font-medium text-sm">Title</th>
-                        <th className="sticky top-0 bg-white dark:bg-gray-950 z-20 border-b px-2 py-3 text-left font-medium text-sm">Sec</th>
-                        <th className="sticky top-0 bg-white dark:bg-gray-950 z-20 border-b px-2 py-3 text-left font-medium text-sm">Faculty</th>
-                        <th className="sticky top-0 bg-white dark:bg-gray-950 z-20 border-b px-2 py-3 text-left font-medium text-sm">Credit</th>
-                        <th className="sticky top-0 bg-white dark:bg-gray-950 z-20 border-b px-2 py-3 text-left font-medium text-sm">Schedule</th>
-                        <th className="sticky top-0 bg-white dark:bg-gray-950 z-20 border-b px-2 py-3 text-left font-medium text-sm">Action</th>
+                        <th className="sticky top-0 bg-white dark:bg-gray-950 z-20 border-b px-2 py-2 sm:py-3 text-left font-medium text-xs sm:text-sm">Code</th>
+                        <th className="sticky top-0 bg-white dark:bg-gray-950 z-20 border-b px-2 py-2 sm:py-3 text-left font-medium text-xs sm:text-sm">Title</th>
+                        <th className="sticky top-0 bg-white dark:bg-gray-950 z-20 border-b px-2 py-2 sm:py-3 text-left font-medium text-xs sm:text-sm">Sec</th>
+                        <th className="sticky top-0 bg-white dark:bg-gray-950 z-20 border-b px-2 py-2 sm:py-3 text-left font-medium text-xs sm:text-sm">Faculty</th>
+                        <th className="sticky top-0 bg-white dark:bg-gray-950 z-20 border-b px-2 py-2 sm:py-3 text-left font-medium text-xs sm:text-sm">Credit</th>
+                        <th className="sticky top-0 bg-white dark:bg-gray-950 z-20 border-b px-2 py-2 sm:py-3 text-left font-medium text-xs sm:text-sm">Schedule</th>
+                        <th className="sticky top-0 bg-white dark:bg-gray-950 z-20 border-b px-2 py-2 sm:py-3 text-left font-medium text-xs sm:text-sm">Action</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -604,24 +1079,58 @@ const DataView = ({ courses: initialCourses, onBack }: { courses: Course[], onBa
                           key={`${course.courseCode}-${course.section}-${index}`}
                           className={`border-b hover:bg-muted/50 ${isCourseSelected(course) ? 'bg-muted' : ''}`}
                         >
-                          <td className="px-2 py-1 break-words text-sm">{course.courseCode}</td>
-                          <td className="px-2 py-1 break-words text-sm">{course.title}</td>
-                          <td className="px-2 py-1 break-words text-sm">{course.section}</td>
-                          <td className="px-2 py-1 break-words text-sm">
+                          <td className="px-2 py-1 break-words text-xs sm:text-sm">{course.courseCode}</td>
+                          <td className="px-2 py-1 break-words text-xs sm:text-sm">{course.title}</td>
+                          <td className="px-2 py-1 break-words text-xs sm:text-sm">{course.section}</td>
+                          <td className="px-2 py-1 break-words text-xs sm:text-sm">
                             {course.facultyName === "TBA"
                               ? "TBA"
                               : `${course.facultyName} (${course.facultyInitial})`}
                           </td>
-                          <td className="px-2 py-1 break-words text-sm">{course.credit}</td>
-                          <td className="px-2 py-1 text-sm">
-                            <div>Day(s): {course.day1}{course.day2 ? ` - ${course.day2}` : ''}</div>
-                            {course.time1 && (<div>Time: {course.time1}</div>)}
+                          <td className="px-2 py-1 break-words text-xs sm:text-sm">{course.credit}</td>
+                          <td className="px-2 py-1 text-xs sm:text-sm">
+                            <div className="whitespace-nowrap">Day(s): {course.day1}{course.day2 ? ` - ${course.day2}` : ''}</div>
+                            {course.time1 && (<div className="whitespace-nowrap">Time: {course.time1}</div>)}
                             {course.room1 && (<div>Room: {course.room1}</div>)}
                           </td>
                           <td className="px-2 py-1">
-                            <Button size="sm" variant="outline" onClick={() => handleSelectCourse(course)}>
-                              {isCourseSelected(course) ? 'Remove' : 'Add'}
-                            </Button>
+                            {sectionPlans.length === 1 ? (
+                              <Button 
+                                size="sm" 
+                                variant="outline" 
+                                onClick={() => handleSelectCourse(course, sectionPlans[0].id)} 
+                                className="text-xs"
+                                disabled={sectionPlans[0].courses.some(c => c.courseCode === course.courseCode)}
+                                title={sectionPlans[0].courses.some(c => c.courseCode === course.courseCode) 
+                                  ? `${course.courseCode} already in plan` 
+                                  : 'Add to plan'}
+                              >
+                                {sectionPlans[0].courses.some(c => c.courseCode === course.courseCode) 
+                                  ? 'Already Added' 
+                                  : 'Add'}
+                              </Button>
+                            ) : (
+                              <Select onValueChange={(planId) => handleSelectCourse(course, planId)}>
+                                <SelectTrigger className="h-8 text-xs w-[90px]">
+                                  <SelectValue placeholder="Add to..." />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  {sectionPlans.map(p => {
+                                    const alreadyHasCourse = p.courses.some(c => c.courseCode === course.courseCode);
+                                    return (
+                                      <SelectItem 
+                                        key={p.id} 
+                                        value={p.id} 
+                                        className="text-xs"
+                                        disabled={alreadyHasCourse}
+                                      >
+                                        {p.name} {alreadyHasCourse ? '(Has this)' : ''}
+                                      </SelectItem>
+                                    );
+                                  })}
+                                </SelectContent>
+                              </Select>
+                            )}
                           </td>
                         </tr>
                       ))}

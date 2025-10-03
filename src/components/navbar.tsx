@@ -7,13 +7,13 @@ import { ThemeToggle } from "@/components/ui/theme-toggle"
 export function Navbar() {
   return (
     <nav className="sticky top-0 z-50 w-full border-b border-border/40 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
-      <div className="container mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="flex h-16 items-center justify-between">
+      <div className="container mx-auto px-3 sm:px-6 lg:px-8">
+        <div className="flex h-14 sm:h-16 items-center justify-between gap-2">
           {/* Logo/Brand */}
-          <div className="flex items-center space-x-2">
-            <GraduationCap className="h-8 w-8 text-primary" />
-            <div>
-              <h1 className="text-xl font-bold">UIU Section Selector</h1>
+          <div className="flex items-center space-x-1.5 sm:space-x-2 min-w-0">
+            <GraduationCap className="h-6 w-6 sm:h-8 sm:w-8 text-primary flex-shrink-0" />
+            <div className="min-w-0">
+              <h1 className="text-sm sm:text-xl font-bold truncate">UIU Section Selector</h1>
               <p className="text-xs text-muted-foreground hidden sm:block">
                 Smart course scheduling for university students
               </p>
@@ -21,7 +21,7 @@ export function Navbar() {
           </div>
 
           {/* Navigation Items */}
-          <div className="flex items-center space-x-4">
+          <div className="flex items-center space-x-1.5 sm:space-x-4 flex-shrink-0">
             {/* GitHub Button */}
             <Button
               variant="outline"
@@ -45,7 +45,7 @@ export function Navbar() {
               variant="outline"
               size="icon"
               asChild
-              className="sm:hidden"
+              className="sm:hidden h-8 w-8"
             >
               <a
                 href="https://github.com/TahsinFaiyaz30/UIU-Section-Selector"

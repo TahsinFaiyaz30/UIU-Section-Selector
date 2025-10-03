@@ -8,8 +8,8 @@ export function Footer() {
 
   return (
     <footer className="w-full border-t border-border/40 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
-      <div className="container mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+      <div className="container mx-auto px-3 sm:px-6 lg:px-8 py-6 sm:py-8">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 sm:gap-8">
           {/* Project Info */}
           <div className="space-y-4">
             <h3 className="text-lg font-semibold">UIU Section Selector</h3>
@@ -99,12 +99,12 @@ export function Footer() {
         </div>
 
         {/* Bottom Section */}
-        <div className="mt-8 pt-8 border-t border-border/40">
-          <div className="flex flex-col sm:flex-row justify-between items-center space-y-4 sm:space-y-0">
-            <div className="text-sm text-muted-foreground">
+        <div className="mt-6 sm:mt-8 pt-6 sm:pt-8 border-t border-border/40">
+          <div className="flex flex-col sm:flex-row justify-between items-center space-y-3 sm:space-y-0 text-center sm:text-left">
+            <div className="text-xs sm:text-sm text-muted-foreground">
               © {currentYear} UIU Section Selector. Built with Next.js & Tailwind CSS.
             </div>
-            <div className="text-sm text-muted-foreground">
+            <div className="text-xs sm:text-sm text-muted-foreground">
               Designed for <span className="font-medium">UIU Students</span> and beyond.
             </div>
           </div>

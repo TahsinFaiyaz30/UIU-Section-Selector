@@ -36,6 +36,7 @@ interface Course {
 
 interface SchedulePlannerProps {
   courses: Course[];
+  onAddPlanFromSchedule: (courses: Course[], scheduleName: string) => void;
 }
 
 interface TimePreferences {
@@ -58,7 +59,7 @@ interface GeneratedSchedule {
   dailySchedule: { [day: string]: Course[] };
 }
 
-const SchedulePlanner = ({ courses }: SchedulePlannerProps) => {
+const SchedulePlanner = ({ courses, onAddPlanFromSchedule }: SchedulePlannerProps) => {
   const [program, setProgram] = useState<string>("BSCSE");
   const [timePreferences, setTimePreferences] = useState<TimePreferences>({
     startTimeLimit: "Any",
@@ -779,10 +780,10 @@ const SchedulePlanner = ({ courses }: SchedulePlannerProps) => {
           <CardDescription>Set your scheduling constraints and preferences</CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
             {/* Do not start classes before */}
             <div className="space-y-2">
-              <label className="text-sm font-medium">Do not start classes before</label>
+              <label className="text-xs sm:text-sm font-medium">Do not start classes before</label>
               <Select
                 value={timePreferences.startTimeLimit}
                 onValueChange={(value) => setTimePreferences(prev => ({ ...prev, startTimeLimit: value }))}
@@ -801,7 +802,7 @@ const SchedulePlanner = ({ courses }: SchedulePlannerProps) => {
 
             {/* Do not have classes after */}
             <div className="space-y-2">
-              <label className="text-sm font-medium">Do not have classes after</label>
+              <label className="text-xs sm:text-sm font-medium">Do not have classes after</label>
               <Select
                 value={timePreferences.endTimeLimit}
                 onValueChange={(value) => setTimePreferences(prev => ({ ...prev, endTimeLimit: value }))}
@@ -820,7 +821,7 @@ const SchedulePlanner = ({ courses }: SchedulePlannerProps) => {
 
             {/* Class days per week */}
             <div className="space-y-2">
-              <label className="text-sm font-medium">Class days per week</label>
+              <label className="text-xs sm:text-sm font-medium">Class days per week</label>
               <Select
                 value={timePreferences.classDaysPerWeek}
                 onValueChange={(value) => setTimePreferences(prev => ({ ...prev, classDaysPerWeek: value }))}
@@ -840,7 +841,7 @@ const SchedulePlanner = ({ courses }: SchedulePlannerProps) => {
 
             {/* Classes per day */}
             <div className="space-y-2">
-              <label className="text-sm font-medium">Classes per day</label>
+              <label className="text-xs sm:text-sm font-medium">Classes per day</label>
               <Select
                 value={timePreferences.classesPerDay}
                 onValueChange={(value) => setTimePreferences(prev => ({ ...prev, classesPerDay: value }))}
@@ -870,12 +871,12 @@ const SchedulePlanner = ({ courses }: SchedulePlannerProps) => {
         <CardContent className="space-y-4">
           {/* Search Courses - Multi-select with search */}
           <div className="space-y-2">
-            <label className="text-sm font-medium">Search Courses (Select multiple)</label>
+            <label className="text-xs sm:text-sm font-medium">Search Courses (Select multiple)</label>
             <div className="space-y-2">
               {courseSelection.selectedCourses.length > 0 && (
                 <div className="flex flex-wrap gap-2">
                   {courseSelection.selectedCourses.map((course, index) => (
-                    <div key={index} className="bg-blue-100 dark:bg-blue-900 text-blue-800 dark:text-blue-200 px-3 py-1 rounded-full text-sm flex items-center gap-2">
+                    <div key={index} className="bg-blue-100 dark:bg-blue-900 text-blue-800 dark:text-blue-200 px-2 sm:px-3 py-1 rounded-full text-xs sm:text-sm flex items-center gap-1.5 sm:gap-2">
                       <span>{course.split(' - ')[0]}</span>
                       <button
                         onClick={() => {
@@ -957,12 +958,12 @@ const SchedulePlanner = ({ courses }: SchedulePlannerProps) => {
 
           {/* Prioritize by Faculties with search */}
           <div className="space-y-2">
-            <label className="text-sm font-medium">Prioritize by Faculties (Optional)</label>
+            <label className="text-xs sm:text-sm font-medium">Prioritize by Faculties (Optional)</label>
             <div className="space-y-2">
               {courseSelection.prioritizedFaculties.length > 0 && (
                 <div className="flex flex-wrap gap-2">
                   {courseSelection.prioritizedFaculties.map((faculty, index) => (
-                    <div key={index} className="bg-green-100 dark:bg-green-900 text-green-800 dark:text-green-200 px-3 py-1 rounded-full text-sm flex items-center gap-2">
+                    <div key={index} className="bg-green-100 dark:bg-green-900 text-green-800 dark:text-green-200 px-2 sm:px-3 py-1 rounded-full text-xs sm:text-sm flex items-center gap-1.5 sm:gap-2">
                       <span>{faculty.split('(')[0].trim()}</span>
                       <button
                         onClick={() => {
@@ -1055,32 +1056,45 @@ const SchedulePlanner = ({ courses }: SchedulePlannerProps) => {
       {/* Generated Schedules */}
       {generatedSchedules.length > 0 && (
         <div className="space-y-6">
-          <div className="flex justify-between items-center">
-            <h3 className="text-lg font-semibold">
+          <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
+            <h3 className="text-base sm:text-lg font-semibold">
               Generated Schedules ({generatedSchedules.length} of {allSchedules.length} shown)
             </h3>
-            <div className="flex gap-2 items-center">
+            <div className="flex gap-2 items-center w-full sm:w-auto">
               {allSchedules.length > generatedSchedules.length && (
                 <Button 
                   variant="outline" 
                   size="sm"
                   onClick={showMoreSchedules}
+                  className="text-xs sm:text-sm flex-1 sm:flex-none"
                 >
                   Show More (+10)
                 </Button>
               )}
-              <p className="text-sm text-muted-foreground">
-                Total: {allSchedules.length} combinations
+              <p className="text-xs sm:text-sm text-muted-foreground">
+                Total: {allSchedules.length}
               </p>
             </div>
           </div>
           
           {generatedSchedules.map((schedule, index) => (
             <Card key={schedule.id}>
-              <CardHeader>
-                <CardTitle className="flex justify-between items-center">
-                  <span>Schedule Option {index + 1}</span>
-                  <div className="flex gap-2 text-sm">
+              <CardHeader className="px-4 sm:px-6">
+                {/* Mobile Layout */}
+                <div className="flex flex-col gap-2 sm:hidden">
+                  {/* Row 1: Title and Button */}
+                  <div className="flex justify-between items-center gap-2">
+                    <span className="text-base font-semibold">Schedule Option {index + 1}</span>
+                    <Button
+                      onClick={() => onAddPlanFromSchedule(schedule.courses, `Schedule Option ${index + 1}`)}
+                      size="sm"
+                      className="bg-emerald-600 hover:bg-emerald-700 text-white text-xs flex-shrink-0"
+                    >
+                      + Add as Section Plan
+                    </Button>
+                  </div>
+                  {/* Row 2: Badges */}
+                  <div className="flex flex-wrap gap-2 text-xs">
                     <span className="bg-blue-100 dark:bg-blue-900 text-blue-800 dark:text-blue-200 px-2 py-1 rounded">
                       {schedule.totalDays} days/week
                     </span>
@@ -1090,25 +1104,48 @@ const SchedulePlanner = ({ courses }: SchedulePlannerProps) => {
                       </span>
                     )}
                   </div>
-                </CardTitle>
+                </div>
+
+                {/* Desktop Layout - Everything in one line */}
+                <div className="hidden sm:flex sm:justify-between sm:items-center gap-2">
+                  <div className="flex items-center gap-2">
+                    <span className="text-lg font-semibold">Schedule Option {index + 1}</span>
+                    <span className="bg-blue-100 dark:bg-blue-900 text-blue-800 dark:text-blue-200 px-2 py-1 rounded text-sm">
+                      {schedule.totalDays} days/week
+                    </span>
+                    {schedule.missingFaculties.length === 0 && (
+                      <span className="bg-green-100 dark:bg-green-900 text-green-800 dark:text-green-200 px-2 py-1 rounded text-sm">
+                        All preferred faculties
+                      </span>
+                    )}
+                  </div>
+                  <Button
+                    onClick={() => onAddPlanFromSchedule(schedule.courses, `Schedule Option ${index + 1}`)}
+                    size="sm"
+                    className="bg-emerald-600 hover:bg-emerald-700 text-white text-sm"
+                  >
+                    + Add as Section Plan
+                  </Button>
+                </div>
+
                 {schedule.missingFaculties.length > 0 && (
-                  <CardDescription className="text-orange-600 dark:text-orange-400">
+                  <CardDescription className="text-orange-600 dark:text-orange-400 text-xs sm:text-sm mt-2">
                     ⚠️ Missing preferred faculties: {schedule.missingFaculties.join(", ")}
                   </CardDescription>
                 )}
               </CardHeader>
-              <CardContent>
+              <CardContent className="px-4 sm:px-6">
                 {/* Weekly Schedule Table */}
-                <div className="overflow-auto">
-                  <table className="w-full border-collapse border border-gray-200 dark:border-gray-700">
+                <div className="overflow-x-auto">
+                  <table className="w-full border-collapse border border-gray-200 dark:border-gray-700 min-w-[640px]">
                     <thead>
                       <tr className="bg-gray-50 dark:bg-gray-800">
-                        <th className="border border-gray-200 dark:border-gray-700 px-3 py-2 text-left font-medium text-sm">Days</th>
-                        <th className="border border-gray-200 dark:border-gray-700 px-3 py-2 text-left font-medium text-sm">Course</th>
-                        <th className="border border-gray-200 dark:border-gray-700 px-3 py-2 text-left font-medium text-sm">Section</th>
-                        <th className="border border-gray-200 dark:border-gray-700 px-3 py-2 text-left font-medium text-sm">Faculty</th>
-                        <th className="border border-gray-200 dark:border-gray-700 px-3 py-2 text-left font-medium text-sm">Time</th>
-                        <th className="border border-gray-200 dark:border-gray-700 px-3 py-2 text-left font-medium text-sm">Room</th>
+                        <th className="border border-gray-200 dark:border-gray-700 px-2 sm:px-3 py-2 text-left font-medium text-xs sm:text-sm">Days</th>
+                        <th className="border border-gray-200 dark:border-gray-700 px-2 sm:px-3 py-2 text-left font-medium text-xs sm:text-sm">Course</th>
+                        <th className="border border-gray-200 dark:border-gray-700 px-2 sm:px-3 py-2 text-left font-medium text-xs sm:text-sm">Section</th>
+                        <th className="border border-gray-200 dark:border-gray-700 px-2 sm:px-3 py-2 text-left font-medium text-xs sm:text-sm">Faculty</th>
+                        <th className="border border-gray-200 dark:border-gray-700 px-2 sm:px-3 py-2 text-left font-medium text-xs sm:text-sm">Time</th>
+                        <th className="border border-gray-200 dark:border-gray-700 px-2 sm:px-3 py-2 text-left font-medium text-xs sm:text-sm">Room</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -1119,21 +1156,21 @@ const SchedulePlanner = ({ courses }: SchedulePlannerProps) => {
                         })
                         .map((course, courseIndex) => (
                           <tr key={`course-${courseIndex}`} className="hover:bg-gray-50 dark:hover:bg-gray-800">
-                            <td className="border border-gray-200 dark:border-gray-700 px-3 py-2 text-sm font-medium">
+                            <td className="border border-gray-200 dark:border-gray-700 px-2 sm:px-3 py-2 text-xs sm:text-sm font-medium whitespace-nowrap">
                               {course.day1 && course.day2 ? `${course.day1} - ${course.day2}` : course.day1}
                             </td>
-                            <td className="border border-gray-200 dark:border-gray-700 px-3 py-2 text-sm">
+                            <td className="border border-gray-200 dark:border-gray-700 px-2 sm:px-3 py-2 text-xs sm:text-sm">
                               <div className="font-medium">{course.courseCode}</div>
-                              <div className="text-xs text-gray-600 dark:text-gray-400">{course.title}</div>
+                              <div className="text-xs text-gray-600 dark:text-gray-400 line-clamp-2">{course.title}</div>
                             </td>
-                            <td className="border border-gray-200 dark:border-gray-700 px-3 py-2 text-sm">{course.section}</td>
-                            <td className="border border-gray-200 dark:border-gray-700 px-3 py-2 text-sm">
+                            <td className="border border-gray-200 dark:border-gray-700 px-2 sm:px-3 py-2 text-xs sm:text-sm">{course.section}</td>
+                            <td className="border border-gray-200 dark:border-gray-700 px-2 sm:px-3 py-2 text-xs sm:text-sm">
                               <div className={courseSelection.prioritizedFaculties.includes(`${course.facultyName} (${course.facultyInitial})`) ? 'text-green-600 dark:text-green-400 font-medium' : ''}>
                                 {course.facultyName === "TBA" ? "TBA" : `${course.facultyName} (${course.facultyInitial})`}
                               </div>
                             </td>
-                            <td className="border border-gray-200 dark:border-gray-700 px-3 py-2 text-sm">{course.time1}</td>
-                            <td className="border border-gray-200 dark:border-gray-700 px-3 py-2 text-sm">{course.room1}</td>
+                            <td className="border border-gray-200 dark:border-gray-700 px-2 sm:px-3 py-2 text-xs sm:text-sm whitespace-nowrap">{course.time1}</td>
+                            <td className="border border-gray-200 dark:border-gray-700 px-2 sm:px-3 py-2 text-xs sm:text-sm">{course.room1}</td>
                           </tr>
                         ))}
                     </tbody>
@@ -1141,20 +1178,20 @@ const SchedulePlanner = ({ courses }: SchedulePlannerProps) => {
                 </div>
 
                 {/* Schedule Summary */}
-                <div className="mt-4 grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">
-                  <div className="bg-gray-50 dark:bg-gray-800 p-3 rounded">
-                    <div className="font-medium text-gray-900 dark:text-gray-100">Total Courses</div>
-                    <div className="text-lg font-bold text-blue-600 dark:text-blue-400">{schedule.courses.length}</div>
+                <div className="mt-4 grid grid-cols-3 gap-2 sm:gap-4 text-xs sm:text-sm">
+                  <div className="bg-gray-50 dark:bg-gray-800 p-2 sm:p-3 rounded">
+                    <span className="font-medium text-gray-900 dark:text-gray-100">Total Courses: </span>
+                    <span className="font-bold text-blue-600 dark:text-blue-400">{schedule.courses.length}</span>
                   </div>
-                  <div className="bg-gray-50 dark:bg-gray-800 p-3 rounded">
-                    <div className="font-medium text-gray-900 dark:text-gray-100">Total Credits</div>
-                    <div className="text-lg font-bold text-green-600 dark:text-green-400">
+                  <div className="bg-gray-50 dark:bg-gray-800 p-2 sm:p-3 rounded">
+                    <span className="font-medium text-gray-900 dark:text-gray-100">Total Credits: </span>
+                    <span className="font-bold text-green-600 dark:text-green-400">
                       {schedule.courses.reduce((sum, course) => sum + parseInt(course.credit || '0'), 0)}
-                    </div>
+                    </span>
                   </div>
-                  <div className="bg-gray-50 dark:bg-gray-800 p-3 rounded">
-                    <div className="font-medium text-gray-900 dark:text-gray-100">Class Days</div>
-                    <div className="text-lg font-bold text-purple-600 dark:text-purple-400">{schedule.totalDays}</div>
+                  <div className="bg-gray-50 dark:bg-gray-800 p-2 sm:p-3 rounded">
+                    <span className="font-medium text-gray-900 dark:text-gray-100">Class Days: </span>
+                    <span className="font-bold text-purple-600 dark:text-purple-400">{schedule.totalDays}</span>
                   </div>
                 </div>
               </CardContent>
