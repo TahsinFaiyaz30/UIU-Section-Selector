@@ -21,7 +21,7 @@ interface PDFData {
 
 export async function GET(): Promise<NextResponse> {
   try {
-    const pdfPath = path.join(process.cwd(), 'CLASS-ROUTINE-252.pdf');
+    const pdfPath = path.join(process.cwd(), 'CLASS-ROUTINE-253.pdf');
     
     // Check if the file exists
     if (!fs.existsSync(pdfPath)) {

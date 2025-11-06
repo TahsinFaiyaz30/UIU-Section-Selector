@@ -49,27 +49,56 @@ interface Course {
 
 const parsePdfText = (text: string): Course[] => {
   console.log("Starting to parse PDF text...");
+  console.log("First 500 characters:", text.substring(0, 500));
   const courses: Course[] = [];
   
   const cleanedText = text.replace(/(\d{1,2}:\d{2}:[AP]M)\s-\s(\d{1,2}:\d{2}:[AP]M)/g, '$1-$2');
   
-  const headerEndMarker = "Credit";
-  const startIndex = cleanedText.indexOf(headerEndMarker);
+  // Detect PDF format by looking for table headers
+  // Format 1 (252): "Credit" header
+  // Format 2 (253): "Cr." header
+  let isFormat253 = false;
+  let headerEndMarker = "";
+  let startIndex = -1;
+  
+  // Try Format 1 (252) header
+  startIndex = cleanedText.indexOf("Credit");
+  if (startIndex !== -1) {
+    headerEndMarker = "Credit";
+    isFormat253 = false;
+    console.log("Detected Format 252 (with serial numbers)");
+  } else {
+    // Try Format 2 (253) header
+    startIndex = cleanedText.indexOf("Cr.");
+    if (startIndex !== -1) {
+      headerEndMarker = "Cr.";
+      isFormat253 = true;
+      console.log("Detected Format 253 (without serial numbers)");
+    }
+  }
+  
   if (startIndex === -1) {
     console.error("Could not find the header in the PDF text.");
+    console.log("Full text preview:", cleanedText.substring(0, 1000));
     toast.error("Parsing Error: Could not find the data table header in the PDF. The PDF format might be unsupported.");
     return [];
   }
+  
   const courseDataText = cleanedText.substring(startIndex + headerEndMarker.length).trim();
 
-  const courseBlocks = courseDataText.split(/(?=\d+\s+(?:BSCSE|BSDS))/).filter(block => block.trim() !== "");
+  // Split courses based on format
+  // Format 1 (252): Starts with serial number + program (e.g., "1 BSCSE")
+  // Format 2 (253): Starts directly with program (e.g., "BSCSE" or "BSDS")
+  const courseBlocks = isFormat253
+    ? courseDataText.split(/(?=(?:BSCSE|BSDS)\s+[A-Z]{2,4}\s+\d{4})/).filter(block => block.trim() !== "")
+    : courseDataText.split(/(?=\d+\s+(?:BSCSE|BSDS))/).filter(block => block.trim() !== "");
 
   console.log(`Found ${courseBlocks.length} potential course blocks.`);
 
   courseBlocks.forEach((block) => {
     try {
-      // Remove any trailing header/footer junk that might appear after a course block
-      const junkKeywords = ['CLASS ROUTINE', 'United International University', 'Course Offerings'];
+      // Remove footer junk (Format 252: "CLASS ROUTINE 252", Format 253: "monir@admin.uiu.ac.bd")
+      const junkKeywords = ['CLASS ROUTINE', 'United International University', 'Course Offerings', 'monir@admin.uiu'];
       let cleanText = block;
       junkKeywords.forEach((kw) => {
         const idx = cleanText.indexOf(kw);
@@ -79,16 +108,31 @@ const parsePdfText = (text: string): Course[] => {
       });
       let remainingBlock = cleanText.trim();
 
-      // 1. Extract SL, Program, and Course Code from the start
-      // Allow course codes with an optional trailing uppercase letter (e.g., CSE 2218A)
-      const initialMatch = remainingBlock.match(/^(\d+)\s+(BSCSE|BSDS)\s+([A-Z]{2,4}\s+\d{4}[A-Z]?)/);
-      if (!initialMatch) {
-        console.warn(`Skipping block with unexpected start: ${block}`);
-        return;
+      // 1. Extract SL (if Format 252), Program, and Course Code
+      let program = "";
+      let courseCode = "";
+      
+      if (isFormat253) {
+        // Format 253: No serial number, starts with "BSCSE CSE 2218" or "BSDS CSE 2218"
+        const initialMatch = remainingBlock.match(/^(BSCSE|BSDS)\s+([A-Z]{2,4}\s+\d{4}[A-Z]?)/);
+        if (!initialMatch) {
+          console.warn(`Skipping block with unexpected start (253): ${block.substring(0, 100)}`);
+          return;
+        }
+        program = initialMatch[1];
+        courseCode = initialMatch[2];
+        remainingBlock = remainingBlock.substring(initialMatch[0].length).trim();
+      } else {
+        // Format 252: Has serial number "1 BSCSE CSE 2218"
+        const initialMatch = remainingBlock.match(/^(\d+)\s+(BSCSE|BSDS)\s+([A-Z]{2,4}\s+\d{4}[A-Z]?)/);
+        if (!initialMatch) {
+          console.warn(`Skipping block with unexpected start (252): ${block.substring(0, 100)}`);
+          return;
+        }
+        program = initialMatch[2];
+        courseCode = initialMatch[3];
+        remainingBlock = remainingBlock.substring(initialMatch[0].length).trim();
       }
-      const program = initialMatch[2];
-      const courseCode = initialMatch[3];
-      remainingBlock = remainingBlock.substring(initialMatch[0].length).trim();
 
       // 4. Extract Faculty Name, Initial, and Credit by finding the last occurrence in the block
       // Extract faculty info by scanning for the last pattern of "Name Initial Credit"
@@ -157,7 +201,7 @@ const parsePdfText = (text: string): Course[] => {
         }
       }
 
-      // 8. Extract Section
+      // 8. Extract Section (now supports multi-character sections like AC, AD, AE, AF)
       const sectionMatch = remainingBlock.match(/([A-Z]{1,2})(?:\s*\(If\s+Required\))?$/i);
       let section = "TBA";
       if (sectionMatch) {
@@ -332,7 +376,7 @@ const UploadView = ({ onPdfProcessed }: { onPdfProcessed: (courses: Course[]) =>
                 Start with Pre-uploaded Data
               </Button>
               <p className="text-sm text-blue-600 dark:text-blue-400">
-                Using CLASS-ROUTINE-252.pdf - No upload required
+                Using CLASS-ROUTINE-253.pdf - No upload required
               </p>
             </div>
 
